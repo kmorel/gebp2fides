@@ -1,2 +1,3 @@
+lib/setup-python.sh
 venv*
 .venv*

@@ -28,3 +28,62 @@ gebp2fides sol/sol_2896000.bp sol_2896000.fides.json
 
 If the output file is not given, a file with the same name as the input with the
 `.bp` extension replaced with `.fides.json` will be used.
+
+## Install / Configuration
+
+This script requires a version of Python with the `adios2` module available.
+This module is available via `pip`, and you do not need any special features in
+the ADIOS library since only the metadata will be read.
+
+If all users running this script have in their path a Python executable with the
+`adios2` module available, then no configuration needs to be done. If you are
+using this script for your personal use, this may be sufficient.
+
+However, if multiple users will be using this script or you do not like loading
+lots of modules in your system-wide Python configuration, I suggest setting up a
+Python virtual environment with the appropriate modules.
+
+### Creating a Python Virtual Environment
+
+To create a virtual environment, with the proper
+Python executable in your path, run a command like this:
+
+```bash
+python -m venv .venv
+```
+
+This will create a directory named `.venv` in the current directory containing
+your Python virtual environment. To activate the environment, run the `activate`
+script.
+
+```bash
+source .venv/bin/activate
+```
+
+### Configuring the Python Virtual Environment
+
+After running the `source` command above (or the equivalent version for whatever
+shell you are using), you can use the `pip` command to install the `adios2`
+module in this environment.
+
+```bash
+pip install adios2
+```
+
+### Loading the Python Virtual Environment
+
+With the Python virtual environment built, you need to make sure it gets loaded
+for the `gebp2fides` script. When it first starts, `gebp2fides` will look for
+a file named `lib/setup-python.sh` (relative to the location of the script). If
+that script exists, it will be sourced. The Python configuration can go there.
+
+So, create a file named `lib/setup-python.sh` and add a line that activates the
+Python virtual environment that you created.
+
+```bash
+source ${base_dir}/.venv/bin/activate
+```
+
+Before sourcing `lib/setup-python.sh`, `gebp2fides` defines a variable named
+`base_dir` that contains the path to the script, which is used in the example
+above.
