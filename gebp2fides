@@ -1,0 +1,20 @@
+#!/bin/bash
+
+base_dir=$(dirname ${BASH_SOURCE})
+command_name=$(basename ${BASH_SOURCE})
+
+case `hostname` in
+  andes*)
+    echo "${command_name} not currently supported on andes."
+    exit 1
+    ;;
+  login??)
+    # echo "On frontier."
+    source ${base_dir}/venv-frontier/bin/activate
+    ;;
+  *)
+    echo "Cannot identify OLCF system."
+    exit 1
+esac
+
+python ${base_dir}/lib/gebp2fides.py "$@"
