@@ -1,6 +1,6 @@
 #!/bin/bash
 
-base_dir=$(dirname ${BASH_SOURCE})
+base_dir=$(dirname $(realpath ${BASH_SOURCE}))
 command_name=$(basename ${BASH_SOURCE})
 
 python_config_script=${base_dir}/lib/setup-python.sh
