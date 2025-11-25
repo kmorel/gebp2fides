@@ -68,16 +68,44 @@ for axis in [ 'X', 'Y', 'Z' ]:
   }
 grid["coordinate_system"] = { "array": coord_array }
 
-conn_array = "/hpMusic_base/hpMusic_Zone/Elem/ElementConnectivity"
-if conn_array in variables:
-  print_status(f'Found connectivty ({conn_array})')
+explicit_conn_array = "/ExplicitElem/Connectivity"
+explicit_num_vert_array = "/ExplicitElem/NumNodes"
+explicit_types_array = "/ExplicitElem/Types"
+if (explicit_conn_array in variables) and \
+    (explicit_num_vert_array in variables) and \
+    (explicit_types_array in variables):
+  print_status(
+    f'Found connectivty ({explicit_conn_array}, {explicit_num_vert_array}, {explicit_types_array})')
+  grid["cell_set"] = {
+    "cell_set_type": "explicit",
+    "connectivity": {
+      "array_type" : "basic",
+      "data_source" : source,
+      "variable" : explicit_conn_array
+    },
+    "cell_types": {
+      "array_type" : "basic",
+      "data_source" : source,
+      "variable" : explicit_types_array
+    },
+    "number_of_vertices": {
+      "array_type" : "basic",
+      "data_source" : source,
+      "variable" : explicit_num_vert_array
+    }
+  }
+
+hex_conn_array = "/hpMusic_base/hpMusic_Zone/Elem/ElementConnectivity"
+if ("cell_set" not in grid) and (hex_conn_array in variables):
+  print_status(f'Found connectivty ({hex_conn_array})')
   grid["cell_set"] = {
     "cell_set_type" : "single_type",
     "cell_type" : "hexahedron",
     "data_source": "source",
-    "variable" : conn_array
+    "variable" : hex_conn_array
   }
-else:
+
+if "cell_set" not in grid:
   error_and_quit(f'File {infile} missing element connectivity array.')
 
 fields = []
