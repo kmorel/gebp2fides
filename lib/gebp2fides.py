@@ -15,6 +15,12 @@ cli.add_argument('output-filename', nargs='?',
                  help='The (optional) output filename. If not specified, will use the input filename with the extension replaced.')
 cli.add_argument('-f', '--force', action='store_true',
                  help='Force write to the output. Without this argument, this command will fail if the output file already exists.')
+cli.add_argument('--connectivity', metavar='bp-file',
+                 help='Specify a separate input bp file to get connectivity. This is useful when files are compressed to a new file but the connectivity array is not written to the new file and has to be referenced from the original file.')
+cli.add_argument('--coordinates', metavar='bp-file',
+                 help='Specify a separate input bp file to get point coordinates. This is useful when files are compressed to a new file but the point coordinate arrays areo not written to the new file and have to be referenced from the original file.')
+cli.add_argument('--geometry', metavar='bp-file',
+                 help='Specify a separate input bp file to get geometry information. This is equivalent to providing both `--connectivity` and `--coordinates` arguments with the same file.')
 
 args = vars(cli.parse_args())
 
@@ -33,23 +39,44 @@ if not outfile:
 if os.path.exists(outfile) and not args['force']:
   error_and_quit(f'Outfile file {outfile} already exists. To overwrite, use the `--force` option.')
 
+# Collect input files.
+input_filenames = { "source": infile }
+coords_source = "source"
+connect_source = "source"
+if args["geometry"] and (args["geometry"] != infile):
+  input_filenames["geometry"] = args["geometry"]
+  coords_source = "geometry"
+  connect_source = "geometry"
+else:
+  if args["coordinates"] and (args["coordinates"] != infile):
+    if args["coordinates"] != args["connectivity"]:
+      input_filenames["coordinates"] = args["coordinates"]
+      coords_source = "coordinates"
+    else:
+      input_filenames["geometry"] = args["coordinates"]
+      coords_source = "geometry"
+      connect_source = "geometry"
+  if args["connectivity"] and (args["connectivity"] != infile) and \
+     (args["connectivity"] != args["coordinates"]):
+    input_filenames["connectivity"] = args["connectivity"]
+    coords_source = "connectivity"
+
 # Capture variables in input(s).
 sources = {}
-with adios2.FileReader(infile) as input:
-  variables = set()
-  for name, info in input.available_variables().items():
-    variables.add(name)
-  sources["source"] = variables
+for source, inputfile in input_filenames.items():
+  with adios2.FileReader(inputfile) as input:
+    variables = set()
+    for name, info in input.available_variables().items():
+      variables.add(name)
+    sources[source] = variables
 
 grid = { "data_sources" : [] }
 
-for source in sources.keys():
+for source, inputfile in input_filenames.items():
   grid["data_sources"].append({
     "name": source,
     "filename_mode": "relative",
-    # FIXME: This should be relative to the output file, not where we ran this.
-    # "filename": infile,
-    "filename": os.path.relpath(os.path.realpath(infile),
+    "filename": os.path.relpath(os.path.realpath(inputfile),
                                 os.path.dirname(os.path.realpath(outfile)))
   })
 
@@ -58,12 +85,12 @@ coord_prefix = "/hpMusic_base/hpMusic_Zone/GridCoordinates"
 coord_array = { "array_type" : "composite" }
 for axis in [ 'X', 'Y', 'Z' ]:
   array_name = coord_prefix + "/Coordinate" + axis
-  if not array_name in variables:
-    error_and_quit(f'File {infile} missing coordinate system array {array_name}')
+  if not array_name in sources[coords_source]:
+    error_and_quit(f'File {input_filenames[coords_source]} missing coordinate system array {array_name}')
   print_status(f'Found {axis} coordinates ({array_name})')
   coord_array[axis.lower() + "_array"] = {
     "array_type" : "basic",
-    "data_source": "source",
+    "data_source": coords_source,
     "variable" : array_name,
   }
 grid["coordinate_system"] = { "array": coord_array }
@@ -71,47 +98,47 @@ grid["coordinate_system"] = { "array": coord_array }
 explicit_conn_array = "/ExplicitElem/Connectivity"
 explicit_num_vert_array = "/ExplicitElem/NumNodes"
 explicit_types_array = "/ExplicitElem/Types"
-if (explicit_conn_array in variables) and \
-    (explicit_num_vert_array in variables) and \
-    (explicit_types_array in variables):
+if (explicit_conn_array in sources[connect_source]) and \
+    (explicit_num_vert_array in sources[connect_source]) and \
+    (explicit_types_array in sources[connect_source]):
   print_status(
     f'Found connectivty ({explicit_conn_array}, {explicit_num_vert_array}, {explicit_types_array})')
   grid["cell_set"] = {
     "cell_set_type": "explicit",
     "connectivity": {
       "array_type" : "basic",
-      "data_source" : source,
+      "data_source" : connect_source,
       "variable" : explicit_conn_array
     },
     "cell_types": {
       "array_type" : "basic",
-      "data_source" : source,
+      "data_source" : connect_source,
       "variable" : explicit_types_array
     },
     "number_of_vertices": {
       "array_type" : "basic",
-      "data_source" : source,
+      "data_source" : connect_source,
       "variable" : explicit_num_vert_array
     }
   }
 
 hex_conn_array = "/hpMusic_base/hpMusic_Zone/Elem/ElementConnectivity"
-if ("cell_set" not in grid) and (hex_conn_array in variables):
+if ("cell_set" not in grid) and (hex_conn_array in sources[connect_source]):
   print_status(f'Found connectivty ({hex_conn_array})')
   grid["cell_set"] = {
     "cell_set_type" : "single_type",
     "cell_type" : "hexahedron",
-    "data_source": "source",
+    "data_source": connect_source,
     "variable" : hex_conn_array
   }
 
 if "cell_set" not in grid:
-  error_and_quit(f'File {infile} missing element connectivity array.')
+  error_and_quit(f'File {input_filenames[connect_source]} missing element connectivity array.')
 
 fields = []
 step_info = None
 field_matcher = re.compile(r'/hpMusic_base/hpMusic_Zone/FlowSolution/(.*)')
-for source in sources.keys():
+for source in ["source"]:
   for variable in sorted(sources[source]):
     match = field_matcher.fullmatch(variable)
     if match:
